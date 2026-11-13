@@ -11,6 +11,8 @@ import qs
 import qs.components
 import qs.services
 import qs.settings
+import Quickshell.Services.SystemTray
+import Quickshell.Widgets
 
 // bar: a pill at the left or right edge, or along the top — Theme.state.barAt. First the mark (a ring of 16 dots) — the launcher, the center
 // turns red while recording or the microphone is on. Workspaces as dots, the window title, a Doto clock in the center, the tray last — a click
@@ -214,7 +216,7 @@ PanelWindow {
                     Loader {
                         id: part
                         required property string modelData
-                        readonly property bool quick: modelData !== "mode" && modelData !== "power"
+                        readonly property bool quick: modelData !== "mode" && modelData !== "power" && modelData !== "systray"
                         sourceComponent: root.parts[modelData] ?? null
                         visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
                         TapHandler { enabled: part.quick; onTapped: root.trayClicked() }
@@ -224,7 +226,7 @@ PanelWindow {
             }
         }
     }
-    readonly property var parts: ({ layout: layoutC, wifi: wifiC, bluetooth: btC, sound: soundC, notes: notesC, battery: batC, mode: modeC, power: powerC, cat: catC })
+    readonly property var parts: ({ layout: layoutC, wifi: wifiC, bluetooth: btC, sound: soundC, notes: notesC, battery: batC, mode: modeC, power: powerC, cat: catC, systray: systrayC })
     Component { id: layoutC; Lb { text: Sys.layout; px: 10 } }
     // the RunCat cat: the more cpu, the faster it runs (250 ms a frame idle, 50 at full load). cpu is polled while it's in the tray;
     // the Binding isn't in the delegate — a destroyed one doesn't restore the value. Grey as is, lost on white in the light theme — black there, like buds
@@ -357,6 +359,65 @@ PanelWindow {
             color: pwr.hovered ? Theme.fg : Theme.grey
             HoverHandler { id: pwr; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.powerClicked() }
+        }
+    }
+    Component {
+        id: systrayC
+        Pile {
+            spacing: 10
+
+            Repeater {
+                model: SystemTray.items
+
+                Item {
+                    id: trayItem
+                    required property var modelData // SystemTrayItem
+
+                    width: root.vert ? 32 : 24
+                    height: root.vert ? 32 : 24
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: root.vert ? 16 : 6
+                        color: trayMouse.hovered ? Theme.s2 : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.t } }
+                    }
+
+                    IconImage {
+                        anchors.centerIn: parent
+                        implicitSize: 20
+                        source: trayItem.modelData.icon
+                    }
+
+                    QsMenuAnchor {
+                        id: menuAnchor
+                        menu: trayItem.modelData.menu
+                        anchor.window: root
+                        anchor.item: trayItem
+                        anchor.edges: root.vert ? (root.right_ ? Edges.Left : Edges.Right) : Edges.Bottom
+                    }
+
+                    MouseArea {
+                        id: trayMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton) {
+                                if (trayItem.modelData.hasMenu) menuAnchor.open();
+                            } else {
+                                if (trayItem.modelData.onlyMenu) {
+                                    menuAnchor.open();
+                                } else {
+                                    trayItem.modelData.activate();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
